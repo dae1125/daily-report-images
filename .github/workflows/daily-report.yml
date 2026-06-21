@@ -1,0 +1,44 @@
+﻿name: 大鳄日报系统
+on:
+  schedule:
+    - cron: '0 1 * * *'
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 安装依赖
+        run: npm install
+      - name: 安装 Playwright
+        run: npx playwright install --with-deps chromium
+      - name: 生成配置
+        run: |
+          cat > config.json << 'JSONEOF'
+          {
+            "output_dir": "${{ github.workspace }}/output",
+            "deepseek": {
+              "base_url": "https://api.deepseek.com/v1",
+              "api_key": "${{ secrets.DEEPSEEK_API_KEY }}",
+              "model": "deepseek-chat"
+            },
+            "feishu": {
+              "webhook_url": "${{ secrets.FEISHU_WEBHOOK }}"
+            }
+          }
+          JSONEOF
+      - name: '[1] 采集热点'
+        run: node 工作狂005.js
+      - name: '[2] 采集商机'
+        run: node 工作狂009.js
+      - name: '[3] AI生成日报'
+        run: node 工作狂006.js
+      - name: '[4] 生成海报+飞书推送'
+        run: node 工作狂007.js
