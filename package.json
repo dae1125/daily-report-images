@@ -3,4 +3,5 @@
     "dependencies": {
         "playwright": "^1.61.0"
     }
-}
+},
+  "description": "大鳄智能体 AI 日报系统"
