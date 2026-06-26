@@ -27,6 +27,25 @@ const CONFIG = JSON.parse(readFileSync(join(__dirname, 'config.json'), 'utf-8').
     req.write(body); req.end();
   });
 }
+function postForm(url, data) {
+  return new Promise((resolve, reject) => {
+    const body = Object.entries(data).map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v)).join("&");
+    const parsed = new URL(url);
+    const mod = url.startsWith("https") ? https : http;
+    const opt = {
+      hostname: parsed.hostname, port: parsed.port, path: parsed.pathname + parsed.search,
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Content-Length": Buffer.byteLength(body) },
+      timeout: 60000
+    };
+    const req = mod.request(opt, (res) => {
+      let d = ""; res.on("data", c => d += c); res.on("end", () => { try { resolve(JSON.parse(d)); } catch { resolve(d); } });
+    });
+    req.on("error", reject); req.on("timeout", function() { this.destroy(); reject("timeout"); });
+    req.write(body); req.end();
+  });
+}
+
 
 async function callDeepSeek(messages, system) {
   try {
@@ -145,6 +164,18 @@ async function main() {
   }
 
   // 保存到知识库
+  // 推送微信（Server酱）
+  if (CONFIG.serverchan?.sendkey) {
+    try {
+      const title = '【AI热点日报】' + dateStr;
+      const desp = aiResult.substring(0, 2000) + '\n\n来源: ' + sources;
+      await postForm('https://sctapi.ftqq.com/' + CONFIG.serverchan.sendkey + '.send', { title, desp });
+      console.log('微信推送: 成功');
+    } catch (e) {
+      console.log('微信推送失败: ' + e.message);
+    }
+  }
+  // 保存到知识库
   const reportMd = '# AI热点日报 - ' + dateStr + '\n\n---\n\n' + aiResult + '\n\n---\n来源: ' + sources + '\n生成时间: ' + new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) + '\n数据量: ' + crawled.count + ' 条';
   const parts = dateStr.split('-');
   const kbPath = join(KB_DIR, parts[0], parts[1], parts[2]);
@@ -155,5 +186,4 @@ async function main() {
 }
 
 main().catch(console.error);
-
 
